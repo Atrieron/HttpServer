@@ -28,19 +28,17 @@ void doServeClient(SOCKET ClientSocket) {
 		if (iResult > 0) {
 			printf("Bytes received: %d\n", iResult);
 
-			std::string recievedString = std::string::basic_string(recvbuf, recvbuflen);
+			std::string recievedString = std::string::basic_string(recvbuf, iResult);
 
 			std::cout << recievedString;
 
-			// Echo the buffer back to the sender
-			//iSendResult = send(ClientSocket, recvbuf, iResult, 0);
-			//if (iSendResult == SOCKET_ERROR) {
-			//	printf("send failed: %d\n", WSAGetLastError());
-			//	closesocket(ClientSocket);
-			//	WSACleanup();
-			//	return;
-			//}
-			//printf("Bytes sent: %d\n", iSendResult);
+			char sendString[45] = "<http><head></head><body>Hello</body></http>";
+
+			iSendResult = send(ClientSocket, sendString, 45, 0);
+			if (iSendResult == SOCKET_ERROR) {
+				printf("send failed: %d\n", WSAGetLastError());
+			}
+			printf("Bytes sent: %d\n", iSendResult);
 		}
 		else if (iResult == 0)
 			printf("Connection closing...\n");
@@ -56,9 +54,6 @@ void doServeClient(SOCKET ClientSocket) {
 	iResult = shutdown(ClientSocket, SD_SEND);
 	if (iResult == SOCKET_ERROR) {
 		printf("shutdown failed: %d\n", WSAGetLastError());
-		closesocket(ClientSocket);
-		WSACleanup();
-		return;
 	}
 
 	closesocket(ClientSocket);
@@ -82,15 +77,11 @@ private:
 				return;
 			}
 
-			SOCKET ClientSocket = accept(ListenSocket, NULL, NULL);
-			if (ClientSocket == INVALID_SOCKET) {
-				printf("accept failed: %d\n", WSAGetLastError());
-				closesocket(ListenSocket);
-				WSACleanup();
-				return;
-			};
-
-			std::thread clientServingThread(doServeClient, ClientSocket);
+			SOCKET ClientSocket = INVALID_SOCKET;
+			while ((ClientSocket = accept(ListenSocket, NULL, NULL)) != INVALID_SOCKET) {
+				std::thread clientServingThread(doServeClient, ClientSocket);
+				clientServingThread.detach();
+			}		
 		}
 
 		closesocket(ListenSocket);
@@ -108,6 +99,9 @@ public:
 
 	void Stop() {
 		exitSignal.set_value();
+		shutdown(ListenSocket, SD_BOTH);
+		closesocket(ListenSocket);
+		WSACleanup();
 	}
 };
 
